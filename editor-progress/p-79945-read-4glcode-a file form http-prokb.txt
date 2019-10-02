@@ -1,0 +1,167 @@
+----------------------------------------------------------------------
+KB-P79945: 4GL code example for downloading and storing binary file using HTTP sockets
+----------------------------------------------------------------------
+
+Status: Unverified
+
+GOAL:
+
+4GL code example for downloading and storing binary file using HTTP
+sockets
+
+FACT(s) (Environment):
+
+Progress 9.1D
+
+FIX:
+
+/*  Example for downloading a file from URL.
+    Tested with Tomcat. Modification of Sockets-HTTP.p
+*/
+
+DEFINE VARIABLE wurl AS CHARACTER FORMAT "X(255)" 
+       VIEW-AS FILL-IN SIZE 55 BY 1 
+       INITIAL "http://pcrwe2:8080/examples/images/horsedem.gif" LABEL
+"From Url" NO-UNDO.
+
+DEFINE VARIABLE sfile AS CHARACTER FORMAT "X(255)" 
+       VIEW-AS FILL-IN SIZE 55 BY 1 
+       INITIAL "horsedem.gif" LABEL "Save as" NO-UNDO.
+
+
+DEFINE VARIABLE weditor AS CHARACTER VIEW-AS EDITOR INNER-CHARS 
+       72 INNER-LINES 32 LARGE SCROLLBAR-VERTICAL NO-UNDO.
+
+DEFINE BUTTON b-get LABEL "GET".
+
+DEFINE VARIABLE vhost AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vport AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vpath AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vfile AS CHARACTER  NO-UNDO.
+
+SESSION:APPL-ALERT-BOXES = YES.
+FORM wurl sfile b-get SKIP weditor NO-LABELS
+     WITH FRAME DEFAULT-FRAME THREE-D SIDE-LABELS. 
+
+ON 'RETURN':U OF wurl OR 'CHOOSE':U OF b-get
+    DO:
+    ASSIGN wurl.
+    ASSIGN sfile .
+    RUN UrlParser(INPUT wurl, 
+                  OUTPUT vhost, OUTPUT vport, OUTPUT vpath).
+    RUN HTTPGet(vhost, vport, vpath, vfile).
+    weditor:READ-FILE(vfile).
+    RETURN.
+END.
+
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+   DISPLAY wurl sfile weditor WITH FRAME DEFAULT-FRAME.
+   ENABLE wurl sfile b-get weditor WITH FRAME DEFAULT-FRAME.
+   WAIT-FOR GO OF CURRENT-WINDOW.
+END.
+
+DEFINE STREAM outfile.
+DEFINE VARIABLE vSocket AS HANDLE NO-UNDO.   
+DEFINE VARIABLE wstatus AS LOGICAL NO-UNDO.
+DEFINE VARIABLE vStr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vBuffer AS MEMPTR NO-UNDO.
+DEFINE VARIABLE wloop AS LOGICAL NO-UNDO.
+DEF VAR counter AS INT INITIAL 1.
+
+PROCEDURE UrlParser:
+   DEFINE INPUT PARAMETER purl AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER phost AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER pport AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ppath AS CHARACTER NO-UNDO.
+
+   DEFINE VARIABLE vStr AS CHARACTER NO-UNDO.
+
+   IF purl BEGINS "http://" THEN DO:
+      vStr = SUBSTRING(purl, 8).
+      phost = ENTRY(1, vStr, "/").
+      IF NUM-ENTRIES(vStr, "/") = 1 THEN vStr = vStr + "/".
+      ppath = SUBSTRING(vStr, INDEX(vStr,"/")).
+      IF NUM-ENTRIES(phost, ":") > 1 THEN DO:
+         pport = ENTRY(2, phost, ":").
+         phost = ENTRY(1, phost, ":").
+      END.
+      ELSE DO:
+         pport = "80".
+      END.
+   END.
+   ELSE DO:
+      phost = "".
+      pport = "".
+      ppath = purl.
+   END.
+END PROCEDURE.
+
+PROCEDURE HTTPGet:
+DEFINE INPUT PARAMETER phost AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pport AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER ppath AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pfile AS CHARACTER NO-UNDO.
+    wloop = YES.
+   CREATE SOCKET vSocket.
+   vSocket:SET-READ-RESPONSE-PROCEDURE ("readHandler",
+THIS-PROCEDURE).
+   wstatus = vSocket:CONNECT("-H " + phost + " -S " + pport) NO-ERROR.
+   IF wstatus = NO THEN DO:
+      MESSAGE "Connection to http server:" phost "port" pport "is
+unavailable".
+      DELETE OBJECT vSocket.
+      RETURN.
+   END.
+   vStr = "GET " + ppath + " HTTP/1.0" + "~n~n~n".
+   SET-SIZE(vBuffer) = LENGTH(vStr) + 1.
+   PUT-STRING(vBuffer,1) = vStr.
+   vSocket:WRITE(vBuffer, 1, LENGTH(vStr)).
+   SET-SIZE(vBuffer) = 0.
+   DO WHILE wloop:
+      WAIT-FOR READ-RESPONSE OF vSocket.
+   END.
+   vSocket:DISCONNECT().
+   DELETE OBJECT vSocket.
+   OUTPUT STREAM outfile CLOSE.
+   MESSAGE "Saved file" sfile VIEW-AS ALERT-BOX.
+   counter = 1 .
+END PROCEDURE.
+
+
+PROCEDURE readHandler:
+   DEFINE VARIABLE l AS INTEGER NO-UNDO.
+   DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE b AS MEMPTR NO-UNDO.
+   DEF VAR i AS INT INITIAL 0.
+   IF counter = 1 THEN OUTPUT STREAM outfi.le TO VALUE(sfile) BINARY
+NO-CONVERT.
+   ELSE OUTPUT STREAM outfile TO VALUE(sfile) BINARY NO-CONVERT
+APPEND.
+   l = vSocket:GET-BYTES-AVAILABLE().   
+   IF l > 0 THEN DO:
+       SET-SIZE(b) = l + 1.
+      vSocket:READ(b, 1, l, 2).
+      IF counter > 1 THEN DO:
+      DO WHILE i < l :
+          i = i + 1.
+          IF INTEGER(GET-BYTE(b,i)) = 0 THEN PUT STREAM outfile
+CONTROL NULL.
+          ELSE PUT STREAM outfile CONTROL CHR(GET-BYTE(b,i)).
+          
+      END.
+      END. /* End counter 1 */
+      counter = counter + 1 .
+
+      SET-SIZE(b) = 0.
+      wloop = YES.
+      OUTPUT STREAM outfile CLOSE.
+      END.
+   ELSE DO:
+      wloop = NO.
+      
+      vSocket:DISCONNECT().
+   END.
+END..
+

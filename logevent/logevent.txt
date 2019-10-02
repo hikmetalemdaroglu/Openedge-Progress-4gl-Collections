@@ -1,0 +1,1 @@
+logevent -s E -c 3 -r "TTNET" -e 42 "FOKUS QB TEST"

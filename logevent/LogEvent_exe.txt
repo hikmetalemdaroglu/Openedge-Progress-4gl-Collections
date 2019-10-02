@@ -1,0 +1,6 @@
+The Log Event tool allows you to write information to the Windows NT Event log.
+
+Syntax:
+logevent [-m \\MACHINENAME] [-s SIWEF] [-c CategoryNumber] "Event Text"
+
+Severity is one of (S)uccess, (I)nformation, (W)arning, (E)rror or (F)ailure.

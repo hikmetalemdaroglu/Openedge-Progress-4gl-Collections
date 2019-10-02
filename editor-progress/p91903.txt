@@ -1,0 +1,104 @@
+----------------------------------------------------------------------
+KB-P91903: How to change the color of a calculated field column of a freeform query based browse on the push of
+----------------------------------------------------------------------
+
+Status: Unverified
+
+GOAL:
+
+How to change the color of a calculated field column of a freeform
+query based browse on the push of a button.
+
+FACT(s) (Environment):
+
+Windows
+
+FACT(s) (Environment):
+
+Progress 8.x
+
+FACT(s) (Environment):
+
+Progress 9.x
+
+FACT(s) (Environment):
+
+OpenEdge 10.x
+
+FIX:
+
+Following is a step by step description of a solution for this issue:
+1.	Start The Progress AppBuilder.
+2.	Connect to the Progress Sports2000 demo database.
+3.	Create a new window:  File -> New -> Window ->OK
+4.	In the definition section of the window define the following two
+variables:
+DEFINE VARIABLE CalculatedColumnHandle AS HANDLE     NO-UNDO.
+DEFINE VARIABLE iCalculatedFieldColor        AS INTEGER    NO-UNDO.
+5.	Drop a browse on the new window choosing the freeform Query button.
+6.	Define a function ‘getCalculatedFieldHandle’ to get the calculated
+field handle:
+RETURNS HANDLE
+  ( /* parameter-definitions */ ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+DEFINE VARIABLE h AS HANDLE     NO-UNDO.
+
+ ASSIGN
+     h = BROWSE {&BROWSE-NAME}:FIRST-COLUMN NO-ERROR.
+ REPEAT WHILE VALID-HANDLE(h):
+        IF h:BUFFER-FIELD =  ? THEN DO:
+            ASSIGN
+                CalculatedColumnHandle = h.
+            LEAVE.
+        END.
+        h = h:NEXT-COLUMN NO-ERROR.
+    END.
+  RETURN CalculatedColumnHandle.   /* Function return value. */
+END FUNCTION.
+7.	Define a function ‘getCalculatedFieldValue’ to get the calculated
+field value with this code:
+RETURNS DECIMAL
+  ( /* parameter-definitions */ ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+FIND CURRENT Customer NO-LOCK.
+RETURN 2 * balance.   /* Function return value. */
+
+END FUNCTION.
+
+8.	Call the getCalculatedFieldHandle function in the main block before
+‘RUN enable_UI.’,:
+
+DYNAMIC-FUNCTION('getCalculatedFieldHandle':U).
+RUN enable_UI.
+9.	In the ‘Open_Query’ pseudo trigger of the browse type:
+OPEN QUERY {&SELF-NAME} FOR EACH customer NO-LOCK.
+10.	In The ‘DISPLAY’ pseudo trigger of the browse type:
+CustNum NAME City State Country Balance Calculated() LABEL "Calculated
+Field"
+11.	Save the window and run it. 
+12.	Adjust the sizes of the Window, Frame and Browse to taste.
+13.	Drop a Fill-In ‘fiCalculatedFieldColor’ on the window of type
+integer and initial value 12.
+14.	Drop a button ‘ChangeColor’ on the window with the following
+CHOOSE event trigger code:
+DO:
+   iCalculatedFieldColor =
+integer(fiCalculatedFieldColor:SCREEN-VALUE).
+   BROWSE browse-1:REFRESH().
+END.
+15.	Save the window.
+16.	Run Te window.
+17.	Type a valid color number in the fill-in.
+18.	Click the ‘ChangeColor’ button.
+19.	Observe how the fore ground color of the Calculated Field changes
+to that color.
+2.      The attached note contains the actual code for the above
+described solution.  To see the sample in action, just cut, paste and
+run this code using the Progress Procedure Editor.
+

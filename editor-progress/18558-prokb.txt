@@ -1,0 +1,90 @@
+----------------------------------------------------------------------
+KB-18558: Code for overstrike mode in editor object ( widget )
+----------------------------------------------------------------------
+
+Code for overstrike mode in editor object ( widget )
+
+
+By default the editor widget / object in PROGRESS does not include
+support for overstrike mode. When typing into the widget, only insert
+mode is available.
+
+This is due to the fact that the editor is Windows compliant. (For
+comparison, one can see that the Windows Notepad utility also does
+not include overstrike mode support.)
+
+Programmers can write trigger code for the editor that creates this
+overstrike capability. Example code is shown below. Please note that
+running this code will result in a subtle flashing effect on the
+editor when text is typed into it. This is unavoidable due to the
+way the trigger code refreshes the editor's SCREEN-VALUE.
+
+Step 1: Write a trigger for when the user toggles the INSERT key
+        while in the editor.
+
+  DEFINE VAR in-mode AS LOGICAL.
+
+  ON INSERT-MODE OF EDITOR-1 IN FRAME DEFAULT-FRAME
+    DO:
+      IF in-mode THEN in-mode = NO.
+      ELSE in-mode = yes.
+  END.
+
+
+Step 2: Write a trigger for ANY-PRINTABLE in the editor that handles
+        keystrokes depending on whether insert mode is enabled.
+
+        Note that the trigger code must take into account whether
+        text has been highlighted in the editor. In both insert and
+        overstrike mode, typing into the editor when text is
+        highlighted will result in the typed key replacing the
+        entire block of highlighted text.
+
+ON ANY-PRINTABLE OF EDITOR-1 IN FRAME DEFAULT-FRAME
+DO:
+   if editor-1:selection-end <> ? then do:
+      /* text is highlighted -- remove all highlighted text and
+      replace it with the last key that was entered */
+      x = editor-1:selection-start.
+      editor-1:screen-value =
+        substring(editor-1:screen-value,1,
+           editor-1:selection-start - 1) +
+        keylabel(lastkey) +
+        substring(editor-1:screen-value,editor-1:selection-end,
+        (length(editor-1:screen-value) -
+           editor-1:cursor-offset) + 1).
+        editor-1:cursor-offset = x + 1.
+        return no-apply.
+   end.
+   else do:
+     if in-mode = NO then do:
+        /* save cursor's current position in editor */
+        x = editor-1:cursor-offset.
+        /* overstrike mode */
+        editor-1:screen-value =
+           substring(editor-1:screen-value,1,
+               (editor-1:cursor-offset - 1)) +
+           keylabel(lastkey) +
+           substring(editor-1:screen-value,
+               (editor-1:cursor-offset + 1),
+           (length(editor-1:screen-value)) -
+               editor-1:cursor-offset).
+        editor-1:cursor-offset = x + 1.
+        return no-apply.
+       end.
+       else do:
+
+       /* insert mode - just use editor default behavior */
+       apply lastkey.
+       return no-apply.
+    end.
+  end.
+END.
+
+
+DISCLAIMER: This example code is provided for informational purposes
+only. Its inclusion in the Progress Support Knowledgebase does not
+constitute endorsement of it or support for it, nor does it
+guarantee that it has been tested to the extent recommended for
+application deployment. Programmers are advised that they use it at
+their own risk.
